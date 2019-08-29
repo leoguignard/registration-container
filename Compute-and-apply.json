@@ -1,0 +1,12 @@
+{
+	"path_to_data": "/path/to/data/",
+	"path_out": "/path/to/registration/matrices/",
+	"file_name": "e001_c0_t_{t:03d}.tif",
+	"voxel_size": [0.593, 0.593, 5],
+	"trsf_type": "rigid",
+	"ref_TP": 0,
+	"suffix": "TimeRegistration",
+	"first": 0,
+	"last": 1
+}
+

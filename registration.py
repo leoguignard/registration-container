@@ -3,13 +3,13 @@
 # file 'LICENCE', which is part of this source code package.
 # Author: Leo Guignard (guignardl...@AT@...janelia.hhmi.org)
 
-import numpy as np
-import scipy as sp
-from IO import imread, imsave, SpatialImage
-from pyklb import readheader
 from time import time
 import os
+import json
 from multiprocessing import Pool
+import numpy as np
+from IO import imread, imsave, SpatialImage
+from pyklb import readheader
 path_to_bin = ''
 
 def read_trsf(path):
@@ -24,9 +24,8 @@ def read_trsf(path):
         lines = f.readlines()[2:-1]
         f.close()
         return np.array([[float(v) for v in l.split()]  for l in lines])
-    else:
-        f.close()
-        return np.loadtxt(path)
+    f.close()
+    return np.loadtxt(path)
 
 def produce_trsf(params):
     ''' Given an output path, an image path format, a reference time, two time points,
@@ -50,28 +49,26 @@ def produce_trsf(params):
         else:
             p_out + 't%06d-%06d.txt'%(t2, t1)
         return
-    if not os.path.exists(p_out + 't%06d-%06d.txt'%(t1, t2)) or os.path.exists(p_out + 't%06d-%06d.txt'%(t2, t1)):
+    if (not os.path.exists(p_out + 't%06d-%06d.txt'%(t1, t2))
+            or os.path.exists(p_out + 't%06d-%06d.txt'%(t2, t1))):
         # path_format = p
         # t_for_string = (t2,)*p.count('%')
         p_im_2 = p.format(t=t2)#(t_for_string)
         if t1 < r:
             os.system('blockmatching -ref ' + p_im_2 + ' -flo ' + p_im_1 + \
-                      ' -res tmp.mha' + \
                       ' -reference-voxel %f %f %f'%vs + \
                       ' -floating-voxel %f %f %f'%vs + \
                       ' -trsf-type %s -py-hl 6 -py-ll 3'%trsf_type + \
                       ' -res-trsf ' + p_out + 't%06d-%06d.txt'%(t1, t2))
         else:
             os.system('blockmatching -ref ' + p_im_1 + ' -flo ' + p_im_2 + \
-                      ' -res tmp.mha' + \
                       ' -reference-voxel %f %f %f'%vs + \
                       ' -floating-voxel %f %f %f'%vs + \
                       ' -trsf-type %s -py-hl 6 -py-ll 3'%trsf_type + \
                       ' -res-trsf ' + p_out + 't%06d-%06d.txt'%(t2, t1))
 
-
-def run_produce_trsf(p, r, trsf_p, tp_list, vs = (3., 3., 5.), nb_cpu = 1,
-                        trsf_type = 'translation', not_to_do = []):
+def run_produce_trsf(p, r, trsf_p, tp_list, vs=(3., 3., 5.), nb_cpu=1,
+                     trsf_type='translation', not_to_do=None):
     ''' Parallel processing of the transformations from t to t-1/t-1 to t (depending on t<r)
         The transformation is computed using blockmatching algorithm
         Args:
@@ -87,16 +84,18 @@ def run_produce_trsf(p, r, trsf_p, tp_list, vs = (3., 3., 5.), nb_cpu = 1,
     '''
     if not os.path.exists(trsf_p):
         os.mkdir(trsf_p)
+    if not_to_do is None:
+        not_to_do = []
     mapping = [(trsf_p, p, r, t1, t2, vs, trsf_type,
                 0 if (t1 in not_to_do or t2 in not_to_do) else 1)
-                for t1, t2 in zip(tp_list[:-1], tp_list[1:])]# range(first_TP, nb_times + first_TP)]
+               for t1, t2 in zip(tp_list[:-1], tp_list[1:])]
     tic = time()
     if nb_cpu == 1:
         tmp = []
         for params in mapping:
             tmp += [produce_trsf(params)]
     else:
-        pool = Pool(processes = nb_cpu)
+        pool = Pool(processes=nb_cpu)
         tmp = pool.map(produce_trsf, mapping)
         pool.close()
         pool.terminate()
@@ -107,20 +106,6 @@ def run_produce_trsf(p, r, trsf_p, tp_list, vs = (3., 3., 5.), nb_cpu = 1,
     mins = whole_time%60
     hours = whole_time//60
     print '%dh:%dmin:%ds'%(hours, mins, secs)
-
-def get_time_points(p, check_TPs, size = 4):
-    times = [pi for pi in os.listdir(p) if not check_TPs or os.path.isdir(p+pi) and size <= len(os.listdir(p+pi))]
-    times = [int(pi[2:]) for pi in times]
-    return times
-
-def lowess_smooth_interp(X, T, frac):
-    X_smoothed = lowess(X, T, frac = frac, is_sorted = True, return_sorted = False)
-    return sp.interpolate.InterpolatedUnivariateSpline(T, X_smoothed, k=1)
-    
-def lowess_smooth_interp_fig(X, T, T_all, frac):
-    X_interp = sp.interpolate.InterpolatedUnivariateSpline(T, X, k=1)
-    X_smoothed = lowess([X_interp(t) for t in T_all], T_all, frac = frac, is_sorted = True, return_sorted = False)
-    return X_interp, X_smoothed
 
 def compose_trsf(flo_t, ref_t, trsf_p, tp_list):
     ''' Recusrively build the transformation that allows
@@ -151,10 +136,11 @@ def read_param_file():
     p_param = p_param.replace('"', '')
     p_param = p_param.replace("'", '')
     p_param = p_param.replace(" ", '')
-    if p_param[-4:] == '.csv':
-        f_names = [p_param]
+    if os.path.isdir(p_param):
+        f_names = [os.path.join(p_param, f) for f in os.listdir(p_param)
+                   if '.json' in f and not '~' in f]
     else:
-        f_names = [os.path.join(p_param, f) for f in os.listdir(p_param) if '.csv' in f and not '~' in f]
+        f_names = [p_param]
     path_to_datas = []
     path_outs = []
     v_sizes = []
@@ -167,33 +153,9 @@ def read_param_file():
     p_trsfs = []
     not_to_do = []
     for file_name in f_names:
-        f = open(file_name)
-        lines = f.readlines()
-        f.close()
-        param_dict = {}
-        i = 0
-        nb_lines = len(lines)
-        while i < nb_lines:
-            l = lines[i]
-            split_line = l.split(',')
-            param_name = split_line[0]
-            if (param_name in ['voxel_size', 'not_to_do']):
-                name = param_name
-                out = []
-                while (name == param_name or param_name == '') and  i < nb_lines:
-                    try:
-                        out += [int(split_line[1])]
-                    except ValueError:
-                        out += [float(split_line[1])]
-                    i += 1
-                    if i < nb_lines:
-                        l = lines[i]
-                        split_line = l.split(',')
-                        param_name = split_line[0]
-                param_dict[name] = out
-            else:
-                param_dict[param_name] = split_line[1].strip()
-                i += 1
+        with open(file_name) as f:
+            param_dict = json.load(f)
+            f.close()
         path_to_datas += [param_dict['path_to_data']]
         path_outs += [param_dict['path_out']]
         v_sizes += [tuple(param_dict['voxel_size'])]
@@ -215,8 +177,6 @@ if __name__ == '__main__':
          suffix, file_name_pattern,
          first, last, p_trsf, not_to_do) in zip(*params):
         im_ext = file_name_pattern.split('.')[-1]
-        ref_TP = int(ref_TP) if ref_TP.isdigit() else ref_TP
-            # os.makedirs(p_out + 'fig/')
         A0 = p_to_data + file_name_pattern
         A0_out = p_to_data + file_name_pattern.replace(im_ext, suffix + '.' + im_ext)
         time_points = np.arange(first, last + 1)
@@ -227,22 +187,21 @@ if __name__ == '__main__':
                 to_register = time_points
                 max_t = max(time_points)
                 run_produce_trsf(A0, ref_TP, p_out, to_register,
-                                 vs = v_size, nb_cpu = 1, trsf_type = trsf_type,
-                                 not_to_do = not_to_do)
+                                 vs=v_size, nb_cpu=1, trsf_type=trsf_type,
+                                 not_to_do=not_to_do)
                 compose_trsf(min(to_register), ref_TP, p_out, list(to_register))
                 compose_trsf(max(to_register), ref_TP, p_out, list(to_register))
-                np.savetxt('{:s}t{t:06d}-{t:06d}.txt'.format(p_out, t = ref_TP), np.identity(4))
+                np.savetxt('{:s}t{t:06d}-{t:06d}.txt'.format(p_out, t=ref_TP), np.identity(4))
             except Exception as e:
                 print p_to_data
                 print e
-                pass
 
-            if type(ref_TP) is int:
+            if isinstance(ref_TP, int):
                 if A0.split('.')[-1] == 'klb':
-                    im_shape = readheader(A0.format(t = ref_TP))['imagesize_tczyx'][-1:-4:-1]
+                    im_shape = readheader(A0.format(t=ref_TP))['imagesize_tczyx'][-1:-4:-1]
                 else:
-                    im_shape = imread(A0.format(t = ref_TP)).shape
-                im = SpatialImage(np.ones(im_shape), dtype = np.uint8)
+                    im_shape = imread(A0.format(t=ref_TP)).shape
+                im = SpatialImage(np.ones(im_shape), dtype=np.uint8)
                 im.voxelsize = v_size
                 imsave(p_out + 'tmp.klb', im)
                 os.system('changeMultipleTrsfs -trsf-format ' + p_out + 't%%06d-%06d.txt '%(ref_TP) + \
@@ -256,17 +215,17 @@ if __name__ == '__main__':
         if isinstance(ref_TP, int):
             print 'single time series registration'
             X, Y, Z = readheader(p_out + 'template.klb')['imagesize_tczyx'][-1:-4:-1]
-            xy_proj = np.zeros((X, Y, len(time_points)), dtype = np.uint16)
-            xz_proj = np.zeros((X, Z, len(time_points)), dtype = np.uint16)
-            yz_proj = np.zeros((Y, Z, len(time_points)), dtype = np.uint16)
+            xy_proj = np.zeros((X, Y, len(time_points)), dtype=np.uint16)
+            xz_proj = np.zeros((X, Z, len(time_points)), dtype=np.uint16)
+            yz_proj = np.zeros((Y, Z, len(time_points)), dtype=np.uint16)
             for i, t in enumerate(sorted(time_points)):
                 os.system("applyTrsf '%s' '%s' -trsf "%(A0.format(t=t), A0_out.format(t=t)) + \
                           p_out + 't%06d-%06d-padded.txt '%(t, ref_TP) + \
                           '-template ' + p_out + 'template.klb -floating-voxel %f %f %f -interpolation linear'%v_size)
                 im = imread(A0_out.format(t=t))
-                xy_proj[:,:,i] = SpatialImage(np.max(im, axis = 2))
-                xz_proj[:,:,i] = SpatialImage(np.max(im, axis = 1))
-                yz_proj[:,:,i] = SpatialImage(np.max(im, axis = 0))
+                xy_proj[:, :, i] = SpatialImage(np.max(im, axis=2))
+                xz_proj[:, :, i] = SpatialImage(np.max(im, axis=1))
+                yz_proj[:, :, i] = SpatialImage(np.max(im, axis=0))
             if not os.path.exists(p_to_data.format(t=-1)):
                 os.makedirs(p_to_data.format(t=-1))
             imsave((p_to_data + file_name_pattern.replace(im_ext, 'xyProjection.klb')).format(t=-1),
@@ -283,4 +242,4 @@ if __name__ == '__main__':
                           '-template %s -floating-voxel %f %f %f -interpolation linear'%((ref_TP,)+v_size))
                 im = imread(A0_out%(t, t))
                 imsave(A0_out.replace('.klb', '_xyProjection.klb')%(t, t),
-                       SpatialImage(np.max(im, axis = 2).reshape(im.shape[:2] + (1,))))
+                       SpatialImage(np.max(im, axis=2).reshape(im.shape[:2] + (1,))))
