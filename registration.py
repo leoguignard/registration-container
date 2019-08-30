@@ -231,7 +231,7 @@ if __name__ == '__main__':
             imsave((p_to_data + file_name_pattern.replace(im_ext, 'xyProjection.klb')).format(t=-1),
                    SpatialImage(xy_proj))
             imsave((p_to_data + file_name_pattern.replace(im_ext, 'xzProjection.klb')).format(t=-1),
-                   SpatialImage(yz_proj))
+                   SpatialImage(xz_proj))
             imsave((p_to_data + file_name_pattern.replace(im_ext, 'yzProjection.klb')).format(t=-1),
                    SpatialImage(yz_proj))
         else:
