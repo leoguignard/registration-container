@@ -58,13 +58,13 @@ def produce_trsf(params):
             os.system('blockmatching -ref ' + p_im_2 + ' -flo ' + p_im_1 + \
                       ' -reference-voxel %f %f %f'%vs + \
                       ' -floating-voxel %f %f %f'%vs + \
-                      ' -trsf-type %s -py-hl 6 -py-ll 4'%trsf_type + \
+                      ' -trsf-type %s -py-hl 6 -py-ll 5'%trsf_type + \
                       ' -res-trsf ' + p_out + 't%06d-%06d.txt'%(t1, t2))
         else:
             os.system('blockmatching -ref ' + p_im_1 + ' -flo ' + p_im_2 + \
                       ' -reference-voxel %f %f %f'%vs + \
                       ' -floating-voxel %f %f %f'%vs + \
-                      ' -trsf-type %s -py-hl 6 -py-ll 4'%trsf_type + \
+                      ' -trsf-type %s -py-hl 6 -py-ll 5'%trsf_type + \
                       ' -res-trsf ' + p_out + 't%06d-%06d.txt'%(t2, t1))
 
 def run_produce_trsf(p, r, trsf_p, tp_list, vs=(3., 3., 5.), nb_cpu=1,
