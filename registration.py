@@ -185,7 +185,7 @@ if __name__ == '__main__':
         im_ext = file_name_pattern.split('.')[-1]
         A0 = p_to_data + file_name_pattern
         A0_out = p_to_data + file_name_pattern.replace(im_ext, suffix + '.' + im_ext)
-        time_points = np.arange(first, last + 1)
+        time_points = np.array([i for i in np.arange(first, last + 1) if not i in not_to_do])
         if p_trsf is None:
             if not os.path.exists(p_out):
                 os.makedirs(p_out)
