@@ -160,7 +160,7 @@ def read_param_file():
             param_dict = json.load(f)
             f.close()
         path_to_datas += [param_dict['path_to_data']]
-        path_outs += [param_dict['path_out']]
+        path_outs += [param_dict.get('path_out', '')]
         v_sizes += [tuple(param_dict['voxel_size'])]
         trsf_types += [param_dict['trsf_type']]
         ref_TPs += [param_dict['ref_TP']]
