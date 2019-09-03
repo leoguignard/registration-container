@@ -212,7 +212,7 @@ if __name__ == '__main__':
                 imsave(p_out + 'tmp.klb', im)
                 identity = np.identity(4)
                 for t in not_to_do:
-                    np.savetxt(p_out+'t{flo:06d}-{ref:06d}.txt'.format(t, ref_TP), identity)
+                    np.savetxt(p_out+'t{flo:06d}-{ref:06d}.txt'.format(flo=t, ref=ref_TP), identity)
                 os.system('changeMultipleTrsfs -trsf-format ' + p_out + 't%%06d-%06d.txt '%(ref_TP) + \
                                               '-index-reference %d -first %d -last %d '%(ref_TP, min(time_points), max(time_points)) + \
                                               '-template ' + p_out + 'tmp.klb ' + \
