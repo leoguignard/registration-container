@@ -34,7 +34,8 @@ def produce_trsf(params):
         The registration is done by cross correlation of the MIP along the 3 main axes.
         This function is meant to be call by multiprocess.Pool
     '''
-    p_out, p, r, t1, t2, vs, trsf_type, make = params
+    (p_out, p, r, t1, t2, vs,
+     trsf_type, make, registration_depth) = params
     if isinstance(t1, int):
         # t_for_string = (t1,)*p.count('%')
         # p_im_1 = p%(t_for_string)
@@ -58,17 +59,17 @@ def produce_trsf(params):
             os.system('blockmatching -ref ' + p_im_2 + ' -flo ' + p_im_1 + \
                       ' -reference-voxel %f %f %f'%vs + \
                       ' -floating-voxel %f %f %f'%vs + \
-                      ' -trsf-type %s -py-hl 6 -py-ll 5'%trsf_type + \
+                      ' -trsf-type %s -py-hl 6 -py-ll %d'%(trsf_type, registration_depth) + \
                       ' -res-trsf ' + p_out + 't%06d-%06d.txt'%(t1, t2))
         else:
             os.system('blockmatching -ref ' + p_im_1 + ' -flo ' + p_im_2 + \
                       ' -reference-voxel %f %f %f'%vs + \
                       ' -floating-voxel %f %f %f'%vs + \
-                      ' -trsf-type %s -py-hl 6 -py-ll 5'%trsf_type + \
+                      ' -trsf-type %s -py-hl 6 -py-ll %d'%(trsf_type, registration_depth) + \
                       ' -res-trsf ' + p_out + 't%06d-%06d.txt'%(t2, t1))
 
 def run_produce_trsf(p, r, trsf_p, tp_list, vs=(3., 3., 5.), nb_cpu=1,
-                     trsf_type='translation', not_to_do=None):
+                     trsf_type='translation', not_to_do=None, registration_depth=3):
     ''' Parallel processing of the transformations from t to t-1/t-1 to t (depending on t<r)
         The transformation is computed using blockmatching algorithm
         Args:
@@ -87,7 +88,8 @@ def run_produce_trsf(p, r, trsf_p, tp_list, vs=(3., 3., 5.), nb_cpu=1,
     if not_to_do is None:
         not_to_do = []
     mapping = [(trsf_p, p, r, t1, t2, vs, trsf_type,
-                0 if (t1 in not_to_do or t2 in not_to_do) else 1)
+                0 if (t1 in not_to_do or t2 in not_to_do) else 1,
+                registration_depth)
                for t1, t2 in zip(tp_list[:-1], tp_list[1:])]
     tic = time()
     if nb_cpu == 1:
@@ -152,6 +154,7 @@ def read_param_file():
     lasts = []
     p_trsfs = []
     not_to_do = []
+    registration_depth = []
     for file_name in f_names:
         with open(file_name) as f:
             param_dict = json.load(f)
@@ -167,15 +170,18 @@ def read_param_file():
         lasts += [int(param_dict['last'])]
         p_trsfs += [param_dict.get('trsf_folder', None)]
         not_to_do += [param_dict.get('not_to_do', [])]
+        registration_depth += [param_dict.get('registration_depth', 3)]
     return (path_to_datas, path_outs, v_sizes, trsf_types, ref_TPs,
-            suffixs, file_name_patterns, firsts, lasts, p_trsfs, not_to_do)
+            suffixs, file_name_patterns, firsts, lasts,
+            p_trsfs, not_to_do, registration_depth)
 
 if __name__ == '__main__':
     params = read_param_file()
     for (p_to_data, p_out,
          v_size, trsf_type, ref_TP,
          suffix, file_name_pattern,
-         first, last, p_trsf, not_to_do) in zip(*params):
+         first, last, p_trsf,
+         not_to_do, registration_depth) in zip(*params):
         im_ext = file_name_pattern.split('.')[-1]
         A0 = p_to_data + file_name_pattern
         A0_out = p_to_data + file_name_pattern.replace(im_ext, suffix + '.' + im_ext)
@@ -188,7 +194,7 @@ if __name__ == '__main__':
                 max_t = max(time_points)
                 run_produce_trsf(A0, ref_TP, p_out, to_register,
                                  vs=v_size, nb_cpu=1, trsf_type=trsf_type,
-                                 not_to_do=not_to_do)
+                                 not_to_do=not_to_do, registration_depth=registration_depth)
                 compose_trsf(min(to_register), ref_TP, p_out, list(to_register))
                 compose_trsf(max(to_register), ref_TP, p_out, list(to_register))
                 np.savetxt('{:s}t{t:06d}-{t:06d}.txt'.format(p_out, t=ref_TP), np.identity(4))
