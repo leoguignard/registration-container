@@ -50,8 +50,8 @@ def produce_trsf(params):
         else:
             p_out + 't%06d-%06d.txt'%(t2, t1)
         return
-    if (not os.path.exists(p_out + 't%06d-%06d.txt'%(t1, t2))
-            or os.path.exists(p_out + 't%06d-%06d.txt'%(t2, t1))):
+    if (not (os.path.exists(p_out + 't%06d-%06d.txt'%(t1, t2))
+                or os.path.exists(p_out + 't%06d-%06d.txt'%(t2, t1)))):
         # path_format = p
         # t_for_string = (t2,)*p.count('%')
         p_im_2 = p.format(t=t2)#(t_for_string)
@@ -210,6 +210,9 @@ if __name__ == '__main__':
                 im = SpatialImage(np.ones(im_shape), dtype=np.uint8)
                 im.voxelsize = v_size
                 imsave(p_out + 'tmp.klb', im)
+                identity = np.identity(4)
+                for t in not_to_do:
+                    np.savetxt(p_out+'t{flo:06d}-{ref:06d}.txt'.format(t, ref_TP), identity)
                 os.system('changeMultipleTrsfs -trsf-format ' + p_out + 't%%06d-%06d.txt '%(ref_TP) + \
                                               '-index-reference %d -first %d -last %d '%(ref_TP, min(time_points), max(time_points)) + \
                                               '-template ' + p_out + 'tmp.klb ' + \
